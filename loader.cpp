@@ -165,35 +165,7 @@ bool InjectDLL(DWORD pid, const char* dllPath) {
     return false;
 }
 
-// ======================== MENU ========================
-void drawMenu() {
-    setPurple();
-    std::cout << R"(
-     ___________.__  __                __      __                       
-     \__    ___/|__|/  |______    ____/  \    /  \_____ _______   ____  
-       |    |   |  \   __\__  \  /    \   \/\/   /\__  \\_  __ \_/ __ \ 
-       |    |   |  ||  |  / __ \|   |  \        /  / __ \|  | \/\  ___/ 
-       |____|   |__||__| (____  /___|  /\__/\  /  (____  /__|    \___  >
-                              \/     \/      \/        \/            \/ 
-    )" << std::endl;
-    setBlue();
-    std::cout << "                         [ TitanWare Loader v1.0 ]" << std::endl;
-    std::cout << "                         [   made by felix55     ]" << std::endl;
-    std::cout << std::endl;
-    setGrey();
-    std::cout << "    ====================================================" << std::endl;
-    setPurple();
-    std::cout << "    [1]"; setWhite(); std::cout << "  HWID Spoof" << std::endl;
-    setPurple();
-    std::cout << "    [2]"; setWhite(); std::cout << "  Inject (Key Gerekli)" << std::endl;
-    setPurple();
-    std::cout << "    [3]"; setWhite(); std::cout << "  HWID Goster" << std::endl;
-    setPurple();
-    std::cout << "    [0]"; setWhite(); std::cout << "  Cikis" << std::endl;
-    setGrey();
-    std::cout << "    ====================================================" << std::endl;
-}
-
+// ======================== LOADER ========================
 void DoInject() {
     std::string hwid = GetHWID();
     setWhite();
@@ -204,7 +176,7 @@ void DoInject() {
     int result = ValidateKey(key, hwid);
     if (result != 1) {
         setRed(); std::cout << "\n    [-] Authentication Failed!" << std::endl;
-        Sleep(2000); return;
+        Sleep(3000); return;
     }
 
     setGreen();
@@ -213,17 +185,15 @@ void DoInject() {
     EnsureDirectory(LOCAL_DIR);
 
     setPurple();
-    std::cout << "\n    [*] TitanWare.dll indiriliyor...";
+    std::cout << "\n    [*] Dosyalar dogrulanıyor...";
     if (!DownloadFile(DLL_URL, LOCAL_DLL)) {
         setRed(); std::cout << " Hata!" << std::endl;
-        Sleep(2000); return;
+        Sleep(3000); return;
     }
-    std::cout << " Tamam.";
 
-    std::cout << "\n    [*] TitanWare.jar indiriliyor...";
     if (!DownloadFile(JAR_URL, LOCAL_JAR)) {
         setRed(); std::cout << " Hata!" << std::endl;
-        Sleep(2000); return;
+        Sleep(3000); return;
     }
     std::cout << " Tamam.";
 
@@ -247,7 +217,7 @@ void DoInject() {
     }
     
     setWhite();
-    Sleep(4000);
+    Sleep(5000);
 }
 
 int main() {
@@ -255,35 +225,23 @@ int main() {
     SetConsoleTitleA("TitanWare Loader");
     SetFullScreen();
     if (!EnsureAdmin()) return 0;
-    int choice;
-    while (true) {
-        system("cls");
-        drawMenu();
-        setWhite();
-        std::cout << "\n    > ";
-        if (!(std::cin >> choice)) {
-            std::cin.clear();
-            std::cin.ignore(1000, '\n');
-            continue;
-        }
-        switch (choice) {
-            case 1: 
-                setPurple();
-                std::cout << "\n    [*] HWID Spoof ediliyor...";
-                Sleep(2000);
-                setGreen();
-                std::cout << "\n    [+] Tamam!";
-                Sleep(1500);
-                break;
-            case 2: DoInject(); break;
-            case 3:
-                setPurple();
-                std::cout << "\n    [*] HWID: ";
-                setWhite(); std::cout << GetHWID() << std::endl;
-                Sleep(4000);
-                break;
-            case 0: return 0;
-        }
-    }
+    
+    system("cls");
+    setPurple();
+    std::cout << R"(
+     ___________.__  __                __      __                       
+     \__    ___/|__|/  |______    ____/  \    /  \_____ _______   ____  
+       |    |   |  \   __\__  \  /    \   \/\/   /\__  \\_  __ \_/ __ \ 
+       |    |   |  ||  |  / __ \|   |  \        /  / __ \|  | \/\  ___/ 
+       |____|   |__||__| (____  /___|  /\__/\  /  (____  /__|    \___  >
+                              \/     \/      \/        \/            \/ 
+    )" << std::endl;
+    setBlue();
+    std::cout << "                         [ TitanWare Loader v1.0 ]" << std::endl;
+    std::cout << "                         [   made by felix55     ]" << std::endl;
+    std::cout << std::endl;
+
+    DoInject();
+
     return 0;
 }
