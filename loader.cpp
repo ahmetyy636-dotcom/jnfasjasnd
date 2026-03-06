@@ -13,14 +13,16 @@
 #pragma comment(lib, "urlmon.lib")
 #pragma comment(lib, "shell32.lib")
 
-// ======================== GUVENLIK AYARLARI ========================
+// ======================== AYARLAR ========================
 const std::string GITHUB_RAW = "https://raw.githubusercontent.com/ahmetyy636-dotcom/jnfasjasnd/main/";
 const std::string KEYS_URL    = GITHUB_RAW + "keys.txt";
-const std::string JAR_URL     = GITHUB_RAW + "TitanWare.enc_jar"; // Sifreli versiyon
-const std::string DLL_URL     = GITHUB_RAW + "TitanWare.enc_dll"; // Sifreli versiyon
+const std::string JAR_URL     = GITHUB_RAW + "TitanWare.jar";
+const std::string DLL_URL     = GITHUB_RAW + "TitanWare.dll";
 
-const unsigned char XOR_KEY = 0x7F; // Dosya sifreleme anahtari
-const std::string LOCAL_KEYS_CACHE = "C:\\Windows\\temp_keys.tmp";
+const std::string LOCAL_DIR   = "C:\\Windows\\tr-TR\\";
+const std::string LOCAL_JAR   = LOCAL_DIR + "TitanWare.jar";
+const std::string LOCAL_DLL   = LOCAL_DIR + "TitanWare.dll";
+const std::string LOCAL_KEYS_CACHE = LOCAL_DIR + "keys_cache.tmp";
 
 // ======================== YARDIMCI FONKSIYONLAR ========================
 void setPurple()  { SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 13); }
@@ -29,7 +31,6 @@ void setGrey()    { SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 8);
 void setWhite()   { SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7); }
 void setRed()     { SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12); }
 void setGreen()   { SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 10); }
-void setYellow()  { SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 14); }
 
 void SetFullScreen() {
     HWND hwnd = GetConsoleWindow();
@@ -40,8 +41,7 @@ bool EnsureAdmin() {
     BOOL isAdmin = FALSE;
     PSID adminGroup;
     SID_IDENTIFIER_AUTHORITY ntAuthority = SECURITY_NT_AUTHORITY;
-    if (AllocateAndInitializeSid(&ntAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID,
-        DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &adminGroup)) {
+    if (AllocateAndInitializeSid(&ntAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &adminGroup)) {
         CheckTokenMembership(NULL, adminGroup, &isAdmin);
         FreeSid(adminGroup);
     }
@@ -62,32 +62,13 @@ std::string GetHWID() {
     return std::string(buf);
 }
 
-// Rastgele dosya ismi uretme
-std::string GetRandomPath(std::string ext) {
-    char tempPath[MAX_PATH];
-    GetTempPathA(MAX_PATH, tempPath);
-    return std::string(tempPath) + "win_sys_" + std::to_string(GetTickCount()) + ext;
-}
-
-// Dosya sifresini cozme (XOR)
-void DecryptFile(const std::string& path) {
-    std::ifstream file(path, std::ios::binary);
-    if (!file) return;
-    std::vector<unsigned char> buffer((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    file.close();
-
-    for (size_t i = 0; i < buffer.size(); i++) {
-        buffer[i] ^= XOR_KEY;
-    }
-
-    std::ofstream outfile(path, std::ios::binary);
-    outfile.write((char*)buffer.data(), buffer.size());
-    outfile.close();
-}
-
 bool DownloadFile(const std::string& url, const std::string& path) {
     HRESULT hr = URLDownloadToFileA(NULL, url.c_str(), path.c_str(), 0, NULL);
     return SUCCEEDED(hr);
+}
+
+void EnsureDirectory(const std::string& dir) {
+    CreateDirectoryA(dir.c_str(), NULL);
 }
 
 // ======================== KEY SISTEMI ========================
@@ -126,23 +107,18 @@ int ValidateKey(const std::string& inputKey, const std::string& hwid) {
     std::ifstream file(LOCAL_KEYS_CACHE);
     std::string line;
     while (std::getline(file, line)) {
-        // Satir sonundaki \r ve bosluklari temizle
         while (!line.empty() && (line.back() == '\r' || line.back() == '\n' || line.back() == ' ')) {
             line.pop_back();
         }
         if (line.empty() || line[0] == '#') continue;
-
         std::stringstream ss(line);
         KeyEntry entry;
         std::getline(ss, entry.key, '|');
         std::getline(ss, entry.expiry, '|');
         std::getline(ss, entry.hwid, '|');
-
         if (entry.key == inputKey) {
             DeleteFileA(LOCAL_KEYS_CACHE.c_str());
             if (IsExpired(entry.expiry)) return 2;
-            
-            // HWID bossa veya eslesiyorsa gec
             if (entry.hwid.empty() || entry.hwid == hwid) return 1;
             return 3;
         }
@@ -189,7 +165,7 @@ bool InjectDLL(DWORD pid, const char* dllPath) {
     return false;
 }
 
-// ======================== MENU & ACTIONS ========================
+// ======================== MENU ========================
 void drawMenu() {
     setPurple();
     std::cout << R"(
@@ -218,20 +194,6 @@ void drawMenu() {
     std::cout << "    ====================================================" << std::endl;
 }
 
-void DoHWIDSpoof() {
-    setPurple();
-    std::cout << "\n    [*] HWID Spoofing baslatiliyor...";
-    Sleep(800);
-    std::cout << "\n    [*] Registry duzenleniyor...";
-    Sleep(600);
-    std::cout << "\n    [*] Volume serial degistiriliyor...";
-    Sleep(1000);
-    setGreen();
-    std::cout << "\n    [+] HWID basariyla spoof edildi!" << std::endl;
-    setWhite();
-    Sleep(2000);
-}
-
 void DoInject() {
     std::string hwid = GetHWID();
     setWhite();
@@ -246,63 +208,51 @@ void DoInject() {
     }
 
     setGreen();
-    std::cout << "\n    [+] Authorized. Initializing..." << std::endl;
+    std::cout << "\n    [+] Authorized! Yukleniyor..." << std::endl;
     
-    std::string encryptedJar = GetRandomPath(".tmp");
-    std::string encryptedDll = GetRandomPath(".tmp");
+    EnsureDirectory(LOCAL_DIR);
 
     setPurple();
-    std::cout << "\n    [*] Sistem bilesenleri dogrulanıyor (1/3)...";
-    if (!DownloadFile(DLL_URL, encryptedDll)) {
-        setRed(); std::cout << " Error." << std::endl;
+    std::cout << "\n    [*] TitanWare.dll indiriliyor...";
+    if (!DownloadFile(DLL_URL, LOCAL_DLL)) {
+        setRed(); std::cout << " Hata!" << std::endl;
         Sleep(2000); return;
     }
-    DecryptFile(encryptedDll);
+    std::cout << " Tamam.";
 
-    std::cout << "\n    [*] Sistem bilesenleri dogrulanıyor (2/3)...";
-    if (!DownloadFile(JAR_URL, encryptedJar)) {
-        setRed(); std::cout << " Error." << std::endl;
-        DeleteFileA(encryptedDll.c_str());
+    std::cout << "\n    [*] TitanWare.jar indiriliyor...";
+    if (!DownloadFile(JAR_URL, LOCAL_JAR)) {
+        setRed(); std::cout << " Hata!" << std::endl;
         Sleep(2000); return;
     }
-    DecryptFile(encryptedJar);
+    std::cout << " Tamam.";
 
-    std::cout << "\n    [*] Oyun kütüphanesi baglanıyor (3/3)...";
-
+    std::cout << "\n    [*] Oyun bekleniyor...";
     DWORD pid = 0;
-    for(int i=0; i<20; i++) {
+    while(pid == 0) {
         pid = GetProcessID(_T("CraftRise-x64.exe"));
-        if (pid != 0) break;
-        std::cout << ".";
-        Sleep(1000);
+        if (pid == 0) {
+            std::cout << ".";
+            Sleep(2000);
+        }
     }
 
-    if (pid == 0) {
-        setRed(); std::cout << "\n    [-] Process not found." << std::endl;
-        DeleteFileA(encryptedJar.c_str());
-        DeleteFileA(encryptedDll.c_str());
-        Sleep(2000); return;
-    }
+    setGreen();
+    std::cout << "\n    [+] Oyun bulundu! Inject ediliyor...";
 
-    if (InjectDLL(pid, encryptedDll.c_str())) {
-        setGreen();
-        std::cout << "\n\n    ============================================" << std::endl;
-        std::cout << "    [+] Basariyla yuklendi! Iyi oyunlar." << std::endl;
-        std::cout << "    ============================================" << std::endl;
+    if (InjectDLL(pid, LOCAL_DLL.c_str())) {
+        std::cout << "\n    [+] TitanWare basariyla yuklendi!" << std::endl;
     } else {
-        setRed(); std::cout << "\n    [-] Injection failed." << std::endl;
+        setRed(); std::cout << "\n    [-] Inject basarisiz!" << std::endl;
     }
-
-    Sleep(1000);
-    DeleteFileA(encryptedJar.c_str());
-    DeleteFileA(encryptedDll.c_str());
+    
     setWhite();
-    Sleep(3000);
+    Sleep(4000);
 }
 
 int main() {
     SetConsoleOutputCP(65001);
-    SetConsoleTitleA("TitanWare Loader v1.0");
+    SetConsoleTitleA("TitanWare Loader");
     SetFullScreen();
     if (!EnsureAdmin()) return 0;
     int choice;
@@ -317,18 +267,22 @@ int main() {
             continue;
         }
         switch (choice) {
-            case 1: DoHWIDSpoof(); break;
+            case 1: 
+                setPurple();
+                std::cout << "\n    [*] HWID Spoof ediliyor...";
+                Sleep(2000);
+                setGreen();
+                std::cout << "\n    [+] Tamam!";
+                Sleep(1500);
+                break;
             case 2: DoInject(); break;
             case 3:
                 setPurple();
-                std::cout << "\n    [*] Senin HWID: ";
+                std::cout << "\n    [*] HWID: ";
                 setWhite(); std::cout << GetHWID() << std::endl;
-                setGrey(); std::cout << "    (Bu HWID'yi key almak icin paylasabilirsin)" << std::endl;
                 Sleep(4000);
                 break;
-            case 0:
-                setPurple(); std::cout << "\n    [*] TitanWare kapaniyor...";
-                Sleep(1000); return 0;
+            case 0: return 0;
         }
     }
     return 0;
