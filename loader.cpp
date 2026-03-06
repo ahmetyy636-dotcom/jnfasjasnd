@@ -126,17 +126,25 @@ int ValidateKey(const std::string& inputKey, const std::string& hwid) {
     std::ifstream file(LOCAL_KEYS_CACHE);
     std::string line;
     while (std::getline(file, line)) {
+        // Satir sonundaki \r ve bosluklari temizle
+        while (!line.empty() && (line.back() == '\r' || line.back() == '\n' || line.back() == ' ')) {
+            line.pop_back();
+        }
         if (line.empty() || line[0] == '#') continue;
+
         std::stringstream ss(line);
         KeyEntry entry;
         std::getline(ss, entry.key, '|');
         std::getline(ss, entry.expiry, '|');
         std::getline(ss, entry.hwid, '|');
+
         if (entry.key == inputKey) {
             DeleteFileA(LOCAL_KEYS_CACHE.c_str());
             if (IsExpired(entry.expiry)) return 2;
-            if (!entry.hwid.empty() && entry.hwid != hwid) return 3;
-            return 1;
+            
+            // HWID bossa veya eslesiyorsa gec
+            if (entry.hwid.empty() || entry.hwid == hwid) return 1;
+            return 3;
         }
     }
     DeleteFileA(LOCAL_KEYS_CACHE.c_str());
