@@ -224,7 +224,7 @@ void drawMenu() {
 
     setBlue();
     std::cout << "                         [ TitanWare Loader v1.0 ]" << std::endl;
-    std::cout << "                         [   made by oxinxcom    ]" << std::endl;
+    std::cout << "                         [   made by felix55     ]" << std::endl;
     std::cout << std::endl;
 
     setGrey();
