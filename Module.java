@@ -14,6 +14,8 @@ import wentra.module.setting.Setting;
 import wentra.utils.SoundUtils;
 import wentra.utils.render.animations.Animation;
 import wentra.utils.render.animations.impl.DecelerateAnimation;
+import wentra.utils.render.notification.Notification;
+import wentra.utils.render.notification.NotificationManager;
 
 
 public abstract class Module {
@@ -76,18 +78,22 @@ public abstract class Module {
 
     public void toggle() {
         this.toggled = !this.toggled;
-         if (!(this.name.equals("ClickTP") || this.name.equals("UpClip") || this.name.equals("DownClip"))) {
-             try {
-                 SoundUtils.playSound(this.toggled ? "enable.wav" : "disable.wav", 0.3f);
-                 if (this.toggled) {
-                     Notifications.pushSuccess(this.name + " was enabled");
-                 } else {
-                     Notifications.pushDisable(this.name + " was disabled");
-                 }
-             }
-             catch (Exception e) {
-                 System.err.println("Error posting notification for " + this.name + ": " + e.getMessage());
-             }
+        if (!(this.name.equals("ClickTP") || this.name.equals("UpClip") || this.name.equals("DownClip"))) {
+            Notification.NotificationType type = this.toggled ? Notification.NotificationType.SUCCESS : Notification.NotificationType.DISABLE;
+            try {
+                SoundUtils.playSound(this.toggled ? "enable.wav" : "disable.wav", 0.3f);
+                // Orijinal NotificationManager sistemi
+                NotificationManager.post(type, "Module Toggled", this.name + " was " + (this.toggled ? "\u00a7aenabled" : "\u00a7cdisabled"));
+                // TitanWare bildirim sistemi (Hud uzerinden render edilir)
+                if (this.toggled) {
+                    Notifications.pushSuccess(this.name + " was enabled");
+                } else {
+                    Notifications.pushDisable(this.name + " was disabled");
+                }
+            }
+            catch (Exception e) {
+                System.err.println("Error posting notification for " + this.name + ": " + e.getMessage());
+            }
         }
         try {
             if (this.toggled) {
