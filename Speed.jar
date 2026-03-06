@@ -1,0 +1,150 @@
+package wentra.module.impl.movement;
+
+import com.google.common.eventbus.Subscribe;
+import org.lwjgl.input.Keyboard;
+import wentra.event.impl.TickEvent;
+import wentra.module.Module;
+import wentra.module.setting.BooleanSetting;
+import wentra.module.setting.ModuleCategory;
+import wentra.module.setting.NumberSetting;
+import wentra.utils.mapper.Entity;
+
+public class Speed
+extends Module {
+    private final NumberSetting speedMult = new NumberSetting("SpeedMult", 1.6f, 0.5f, 3.0f);
+    private final NumberSetting accelGround = new NumberSetting("AccelGround", 0.65f, 0.1f, 1.0f);
+    private final NumberSetting accelAir = new NumberSetting("AccelAir", 0.3f, 0.05f, 1.0f);
+    private final BooleanSetting alwaysOn = new BooleanSetting("AlwaysOn", true);
+    private final BooleanSetting autoJump = new BooleanSetting("AutoJump", true);
+    private final BooleanSetting useKeyboard = new BooleanSetting("KeyboardFallback", true);
+    private final BooleanSetting debug = new BooleanSetting("DebugLog", false);
+    private static final double BASE_SPEED = 0.2873;
+
+    public Speed() {
+        super("Speed", ModuleCategory.MOVEMENT, 45);
+        this.settings.add(this.speedMult);
+        this.settings.add(this.accelGround);
+        this.settings.add(this.accelAir);
+        this.settings.add(this.alwaysOn);
+        this.settings.add(this.autoJump);
+        this.settings.add(this.useKeyboard);
+        this.settings.add(this.debug);
+    }
+
+    @Override
+    public void onEnable() {
+    }
+
+    @Subscribe
+    public void onTick(TickEvent e) {
+        double lenSq;
+        Object player = Entity.getThePlayer();
+        if (player == null) {
+            return;
+        }
+        boolean onGround = Entity.isOnGround(player);
+        if (!this.alwaysOn.isToggled() && !onGround) {
+            return;
+        }
+        double forward = 0.0;
+        double strafe = 0.0;
+        try {
+            forward = Entity.getMoveForward();
+            strafe = Entity.getMoveStrafe();
+        }
+        catch (Throwable throwable) {
+            // empty catch block
+        }
+        if (this.useKeyboard.isToggled() && Math.abs(forward) < 0.001 && Math.abs(strafe) < 0.001) {
+            if (Keyboard.isKeyDown((int)17)) {
+                forward += 1.0;
+            }
+            if (Keyboard.isKeyDown((int)31)) {
+                forward -= 1.0;
+            }
+            if (Keyboard.isKeyDown((int)32)) {
+                strafe += 1.0;
+            }
+            if (Keyboard.isKeyDown((int)30)) {
+                strafe -= 1.0;
+            }
+        }
+        if ((lenSq = forward * forward + strafe * strafe) < 1.0E-6) {
+            return;
+        }
+        double inv = 1.0 / Math.sqrt(lenSq);
+        float yaw = this.safeYaw(player);
+        double rad = Math.toRadians(yaw);
+        double dirX = (forward *= inv) * -Math.sin(rad) + (strafe *= inv) * Math.cos(rad);
+        double dirZ = forward * Math.cos(rad) + strafe * Math.sin(rad);
+        double targetSpeed = 0.2873 * (double)this.speedMult.getNumber();
+        double targetX = dirX * targetSpeed;
+        double targetZ = dirZ * targetSpeed;
+        double curX = this.safeMotionX(player);
+        double curZ = this.safeMotionZ(player);
+        double a = Speed.clamp01(onGround ? (double)this.accelGround.getNumber() : (double)this.accelAir.getNumber());
+        double newX = curX + (targetX - curX) * a;
+        double newZ = curZ + (targetZ - curZ) * a;
+        Entity.setMotionX(newX);
+        Entity.setMotionZ(newZ);
+        if (this.autoJump.isToggled() && onGround && (Math.abs(forward) > 0.001 || Math.abs(strafe) > 0.001)) {
+            Entity.setMotionY(0.405f);
+        }
+        if (this.debug.isToggled()) {
+            double spd = Math.sqrt(newX * newX + newZ * newZ);
+            Entity.addChatMessage(String.format("[Speed] yaw=%.1f onG=%s spd=%.3f (t=%.3f) a=%.2f", Float.valueOf(yaw), onGround, spd, targetSpeed, a));
+        }
+    }
+
+    private float safeYaw(Object p) {
+        try {
+            return Entity.getRotationYaw(p);
+        }
+        catch (Throwable throwable) {
+            try {
+                return Entity.getRotationYaw();
+            }
+            catch (Throwable throwable2) {
+                return 0.0f;
+            }
+        }
+    }
+
+    private double safeMotionX(Object p) {
+        try {
+            return Entity.getMotionX2(p);
+        }
+        catch (Throwable throwable) {
+            try {
+                return Entity.getMotionX();
+            }
+            catch (Throwable throwable2) {
+                return 0.0;
+            }
+        }
+    }
+
+    private double safeMotionZ(Object p) {
+        try {
+            return Entity.getMotionZ2(p);
+        }
+        catch (Throwable throwable) {
+            try {
+                return Entity.getMotionZ();
+            }
+            catch (Throwable throwable2) {
+                return 0.0;
+            }
+        }
+    }
+
+    private static double clamp01(double v) {
+        if (v < 0.0) {
+            return 0.0;
+        }
+        if (v > 1.0) {
+            return 1.0;
+        }
+        return v;
+    }
+}
